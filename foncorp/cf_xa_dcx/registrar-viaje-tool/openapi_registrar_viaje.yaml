@@ -1,0 +1,104 @@
+# openapi_registrar_viaje_v2.yaml
+openapi: 3.0.0
+info:
+  title: Herramienta para Registrar Solicitud de Viaje (Foncorp)
+  version: v2.0
+  description: Registra una nueva solicitud de viaje en BigQuery.
+servers:
+  - url: https://europe-west1-fon-test-project.cloudfunctions.net/registrar-viaje-tool
+    # O si usas Cloud Run: https://<NOMBRE_SERVICIO_CLOUDRUN>-<HASH>-<REGION>.a.run.app
+    description: Endpoint de la Cloud Function (2ª gen) o Cloud Run. ¡REEMPLAZA ESTO!
+
+paths:
+  # Si tu CF se llama 'registrar_viaje_tool_webhook' y responde en la raíz de su URL:
+  /: # O la ruta específica si tu función está configurada para una subruta.
+    post:
+      summary: Registra una nueva solicitud de viaje
+      operationId: registrarNuevaSolicitudDeViaje
+      description: Recibe los detalles de una solicitud de viaje y la registra en BigQuery.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                employee_first_name:
+                  type: string
+                  description: Nombre del empleado (pila).
+                employee_last_name:
+                  type: string
+                  description: Apellidos del empleado.
+                employee_id:
+                  type: string
+                  description: ID del empleado.
+                origin_city:
+                  type: string
+                  description: Ciudad de origen del viaje.
+                destination_city:
+                  type: string
+                  description: Ciudad de destino del viaje.
+                start_date:
+                  type: string
+                  format: date # YYYY-MM-DD
+                  description: Fecha de inicio del viaje.
+                end_date:
+                  type: string
+                  format: date # YYYY-MM-DD
+                  description: Fecha de fin del viaje.
+                transport_mode:
+                  type: string
+                  description: Medio de transporte (Avión, Tren, Autobús, Coche).
+                reason:
+                  type: string
+                  description: Motivo del viaje.
+                car_type:
+                  type: string
+                  nullable: true
+                  description: Tipo de coche si el transporte es 'Coche' (Particular o Alquiler). Puede ser omitido o null.
+              required: # Asegúrate de que estos coincidan con tu lógica de validación
+                - employee_first_name
+                - employee_last_name
+                - employee_id
+                - origin_city
+                - destination_city
+                - start_date
+                - end_date
+                - transport_mode
+                - reason
+      responses:
+        '200': # Respuesta exitosa
+          description: Solicitud procesada. La respuesta contiene el mensaje de estado y el ID de la solicitud.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tool_response_message: # Este será un parámetro de SALIDA de la tool en el Playbook
+                    type: string
+                    description: Mensaje de confirmación o error del registro.
+                  generated_request_id: # Este será otro parámetro de SALIDA
+                    type: string
+                    nullable: true # Puede ser null si hubo un error antes de generar el ID
+                    description: El ID de la solicitud generada, si el registro fue exitoso.
+        '400': # Error de cliente (ej. datos faltantes)
+          description: Solicitud inválida.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tool_response_message: # Consistente para mensajes de error
+                    type: string
+                    description: Descripción del error de validación.
+        '500': # Error de servidor
+          description: Error interno en la herramienta.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tool_response_message: # Consistente para mensajes de error
+                    type: string
+                    description: Descripción del error interno.
+

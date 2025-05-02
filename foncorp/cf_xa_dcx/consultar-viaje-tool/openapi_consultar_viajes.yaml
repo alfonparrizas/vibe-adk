@@ -1,0 +1,61 @@
+# openapi_consultar_viajes_v2.yaml
+openapi: 3.0.0
+info:
+  title: Herramienta para Consultar Solicitudes de Viaje por Estado (Foncorp)
+  version: v2.0
+  description: Consulta solicitudes de viaje en BigQuery filtrando por un término de búsqueda de estado.
+servers:
+  - url: https://europe-west1-fon-test-project.cloudfunctions.net/consultar-viaje-tool
+    # O si usas Cloud Run: https://<NOMBRE_SERVICIO_CLOUDRUN>-<HASH>-<REGION>.a.run.app
+    description: Endpoint de la Cloud Function (2ª gen) o Cloud Run. ¡REEMPLAZA ESTO!
+
+paths:
+  # Si tu CF se llama 'consultar_viajes_tool_webhook' y responde en la raíz de su URL:
+  /: # O la ruta específica si tu función está configurada para una subruta.
+    post:
+      summary: Consulta solicitudes de viaje por estado o término de búsqueda.
+      operationId: consultarSolicitudesDeViaje
+      description: Recibe un término de búsqueda y devuelve las solicitudes de viaje que coincidan.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                search_term: # Parámetro de entrada para la tool
+                  type: string
+                  description: "El estado exacto (ej. 'Registrada') o un término de búsqueda general (ej. 'pendientes')."
+              required:
+                - search_term
+      responses:
+        '200': # Respuesta exitosa
+          description: Consulta procesada. La respuesta contiene la cadena con los resultados.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  query_results_string: # Parámetro de salida para el Playbook
+                    type: string
+                    description: Una cadena formateada con las solicitudes encontradas o un mensaje si no hay ninguna/error.
+        '400': # Error de cliente (ej. falta search_term)
+          description: Solicitud inválida.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  query_results_string: # Ser consistente con el nombre del parámetro de salida
+                    type: string
+                    description: Descripción del error de validación.
+        '500': # Error de servidor
+          description: Error interno en la herramienta.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  query_results_string: # Ser consistente
+                    type: string
+                    description: Descripción del error interno.

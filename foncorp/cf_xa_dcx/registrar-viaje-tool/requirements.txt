@@ -1,0 +1,3 @@
+functions-framework>=3.0.0
+Flask>=2.0.0  # functions-framework usa Flask
+google-cloud-bigquery>=3.0.0
