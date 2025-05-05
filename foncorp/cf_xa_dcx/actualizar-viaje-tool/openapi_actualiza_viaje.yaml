@@ -1,0 +1,65 @@
+# openapi_actualizar_viaje_v2.yaml
+openapi: 3.0.0
+info:
+  title: Herramienta para Actualizar Estado de Solicitud de Viaje (Foncorp)
+  version: v2.0
+  description: Actualiza el estado de una solicitud de viaje existente en BigQuery.
+servers:
+  - url: https://europe-west1-fon-test-project.cloudfunctions.net/actualizar-viaje-tool
+    # O si usas Cloud Run: https://<NOMBRE_SERVICIO_CLOUDRUN>-<HASH>-<REGION>.a.run.app
+    description: Endpoint de la Cloud Function (2ª gen) o Cloud Run. ¡REEMPLAZA ESTO!
+
+paths:
+  # Si tu CF se llama 'actualizar_viaje_tool_webhook' y responde en la raíz de su URL:
+  /: # O la ruta específica si tu función está configurada para una subruta.
+    post:
+      summary: Actualiza el estado de una solicitud de viaje.
+      operationId: actualizarEstadoSolicitudDeViaje
+      description: Recibe un ID de solicitud y un nuevo estado, y actualiza el registro en BigQuery.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                request_id: # Parámetro de entrada para la tool
+                  type: string
+                  description: "El ID único de la solicitud de viaje a actualizar."
+                new_status: # Parámetro de entrada para la tool
+                  type: string
+                  description: "El nuevo estado para la solicitud (ej. 'Aprobada', 'Rechazada')."
+              required:
+                - request_id
+                - new_status
+      responses:
+        '200': # Respuesta exitosa
+          description: Actualización procesada. La respuesta contiene el mensaje de estado.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  update_status_message: # Parámetro de salida para el Playbook
+                    type: string
+                    description: Mensaje de confirmación o error de la actualización.
+        '400': # Error de cliente (ej. datos faltantes o estado inválido)
+          description: Solicitud inválida.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  update_status_message: # Ser consistente
+                    type: string
+                    description: Descripción del error de validación o de la solicitud.
+        '500': # Error de servidor
+          description: Error interno en la herramienta.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  update_status_message: # Ser consistente
+                    type: string
+                    description: Descripción del error interno.
