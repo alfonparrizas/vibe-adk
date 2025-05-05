@@ -6,7 +6,7 @@ from typing import Optional
 # Importaciones para BigQuery
 from google.cloud import bigquery
 import uuid
-import datetime # Para el timestamp y la fecha actual en el prompt
+import datetime
 
 # --- Configuración del Modelo ---
 MODEL_ID = "gemini-2.0-flash-001"
@@ -14,7 +14,7 @@ MODEL_ID = "gemini-2.0-flash-001"
 # --- Configuración de BigQuery ---
 BIGQUERY_PROJECT_ID = "fon-test-project"
 BIGQUERY_DATASET_ID = "foncorp_travel_data"
-BIGQUERY_TABLE_ID = "travel_requests" # Tabla con el nuevo esquema
+BIGQUERY_TABLE_ID = "travel_requests"
 
 # --- Definición del Prompt ---
 TRAVEL_AGENT_INSTRUCTION = f"""
@@ -38,7 +38,7 @@ Estados Comunes de Solicitudes y sus Significados (para tu conocimiento interno 
 Instrucciones para las herramientas:
 
 1. Para registrar una nueva solicitud de viaje:
-   - Recopila la siguiente información esencial: Nombre del empleado (pila), Apellidos del empleado, ID de empleado, Ciudad de Origen del viaje, Ciudad de Destino del viaje, Fecha de inicio (formato YYYY-MM-DD), Fecha de fin (formato YYYY-MM-DD), Medio de Transporte Preferido (Avión, Tren, Autobús, Coche), Tipo de Coche si aplica (Particular o Alquiler), y Motivo del viaje.
+   - Recopila la siguiente información esencial: Nombre del empleado (pila), Apellidos del empleado, ID de empleado, Ciudad de Origen del viaje, Ciudad de Destino del viaje, Fecha de inicio (formato<y_bin_46>MM-DD), Fecha de fin (formato<y_bin_46>MM-DD), Medio de Transporte Preferido (Avión, Tren, Autobús, Coche), Tipo de Coche si aplica (Particular o Alquiler), y Motivo del viaje.
    - **Validación de Fechas Importante:**
      - Ambas fechas, inicio y fin, DEBEN ser futuras a la fecha actual ({datetime.datetime.now().strftime('%Y-%m-%d')}).
      - Si el usuario proporciona solo día y mes (ej. "15 de junio"), asume el año actual ({datetime.datetime.now().year}) para completar la fecha. Verifica que esta fecha resultante sea futura.
@@ -50,6 +50,7 @@ Instrucciones para las herramientas:
 2. Para consultar solicitudes de viaje por estado:
    - Intenta comprender a qué estado o grupo de estados se refiere el usuario.
    - Llama a la herramienta 'get_travel_requests_by_status' con el argumento: search_term (str).
+   - **La herramienta 'get_travel_requests_by_status' devolverá la información formateada como una tabla en texto (Markdown). Cuando recibas su respuesta, preséntala directamente al usuario. Evita re-interpretarla o resumirla a menos que sea un mensaje de error o que no se encuentren resultados. Si es una tabla, muéstrala lo más fielmente posible.**
 
 3. Para actualizar el estado de una solicitud de viaje:
    - Necesitarás el ID de la solicitud ('request_id') y el nuevo estado ('new_status').
@@ -70,8 +71,8 @@ class _TravelBookingArgsSchema(BaseModel):
     employee_id: str = Field(description="ID del empleado.")
     origin_city: str = Field(description="Ciudad de origen del viaje.")
     destination_city: str = Field(description="Ciudad de destino del viaje.")
-    start_date: str = Field(description="Fecha de inicio del viaje en formato YYYY-MM-DD.")
-    end_date: str = Field(description="Fecha de fin del viaje en formato YYYY-MM-DD.")
+    start_date: str = Field(description="Fecha de inicio del viaje en formato<y_bin_46>MM-DD.")
+    end_date: str = Field(description="Fecha de fin del viaje en formato<y_bin_46>MM-DD.")
     transport_mode: str = Field(description="Medio de transporte preferido.")
     reason: str = Field(description="Motivo del viaje.")
     car_type: Optional[str] = Field(default=None, description="Tipo de coche si es 'Coche' (Particular o Alquiler).")
@@ -105,8 +106,8 @@ def request_travel_booking_logic(
         employee_id (str): ID del empleado.
         origin_city (str): Ciudad de origen del viaje.
         destination_city (str): Ciudad de destino del viaje.
-        start_date (str): Fecha de inicio del viaje en formato YYYY-MM-DD.
-        end_date (str): Fecha de fin del viaje en formato YYYY-MM-DD.
+        start_date (str): Fecha de inicio del viaje en formato<y_bin_46>MM-DD.
+        end_date (str): Fecha de fin del viaje en formato<y_bin_46>MM-DD.
         transport_mode (str): Medio de transporte preferido (Avión, Tren, Autobús, Coche).
         reason (str): Motivo del viaje.
         car_type (str, optional): Tipo de coche si es 'Coche' (Particular o Alquiler).
@@ -114,23 +115,20 @@ def request_travel_booking_logic(
     Returns:
         str: Mensaje de confirmación o error.
     """
-    # Validación adicional de fechas podría ir aquí también, como una doble comprobación,
-    # pero idealmente el LLM ya las ha validado según el prompt.
-    # Por ejemplo, convertir a objetos date y comparar.
     try:
         date_format = "%Y-%m-%d"
         current_date_obj = datetime.datetime.now().date()
         start_date_obj = datetime.datetime.strptime(start_date, date_format).date()
         end_date_obj = datetime.datetime.strptime(end_date, date_format).date()
 
-        if start_date_obj < current_date_obj or end_date_obj < current_date_obj:
-            return "Error: Las fechas de inicio y fin deben ser futuras."
+        if start_date_obj < current_date_obj:
+            return f"Error en la herramienta: La fecha de inicio '{start_date}' ya ha pasado."
+        if end_date_obj < current_date_obj:
+             return f"Error en la herramienta: La fecha de fin '{end_date}' ya ha pasado."
         if end_date_obj < start_date_obj:
-            return "Error: La fecha de fin no puede ser anterior a la fecha de inicio."
-
+            return "Error en la herramienta: La fecha de fin no puede ser anterior a la fecha de inicio."
     except ValueError:
-        return "Error: El formato de las fechas no es válido. Utiliza YYYY-MM-DD."
-
+        return "Error en la herramienta: El formato de las fechas no es válido. Utiliza<y_bin_46>MM-DD."
 
     try:
         client = bigquery.Client()
@@ -192,15 +190,16 @@ def request_travel_booking_logic(
         print(f"[LOG request_travel_booking_logic - ERROR]: {e}")
         return f"Error técnico al registrar la solicitud: {e}."
 
-# --- Lógica de la Herramienta 2: Consultar Solicitudes por Estado ---
+# --- Lógica de la Herramienta 2: Consultar Solicitudes por Estado (Devuelve Markdown) ---
 def get_travel_requests_by_status(search_term: str) -> str:
     """Consulta solicitudes de viaje. Puede buscar por un estado exacto o interpretar términos comunes como 'pendientes'.
+    Devuelve los resultados en formato de tabla Markdown.
 
     Args:
         search_term (str): El estado exacto (ej. 'Registrada', 'Aprobada') o un término general (ej. 'pendientes').
 
     Returns:
-        str: Cadena formateada con las solicitudes o mensaje de error/no encontrado.
+        str: Una cadena formateada como tabla Markdown con las solicitudes encontradas o un mensaje si no hay ninguna o si ocurre un error.
     """
     try:
         client = bigquery.Client()
@@ -216,23 +215,24 @@ def get_travel_requests_by_status(search_term: str) -> str:
            ("registrada" in processed_search_term and "aprobaci" not in processed_search_term) :
             
             param_counter += 1
-            status_conditions.append(f"status = @status_param_{param_counter}")
+            status_conditions.append(f"LOWER(status) = LOWER(@status_param_{param_counter})")
             query_params.append(bigquery.ScalarQueryParameter(f"status_param_{param_counter}", "STRING", "Registrada"))
             
             if "aprobaci" in processed_search_term or "pendiente" in processed_search_term :
                  param_counter += 1
-                 if not any(p.value == "Pendiente de Aprobación" for p in query_params):
-                    status_conditions.append(f"status = @status_param_{param_counter}")
+                 if not any(p.value.lower() == "pendiente de aprobación" for p in query_params):
+                    status_conditions.append(f"LOWER(status) = LOWER(@status_param_{param_counter})")
                     query_params.append(bigquery.ScalarQueryParameter(f"status_param_{param_counter}", "STRING", "Pendiente de Aprobación"))
         
         exact_final_statuses = ["aprobada", "rechazada", "reservada", "completada", "cancelada"]
-        if processed_search_term in exact_final_statuses or (not status_conditions and processed_search_term):
+        if processed_search_term in exact_final_statuses or \
+           (not status_conditions and processed_search_term):
             status_conditions = [] 
             query_params = []
             param_counter = 0
             
             param_counter += 1
-            status_conditions.append(f"status = @status_param_{param_counter}")
+            status_conditions.append(f"LOWER(status) = LOWER(@status_param_{param_counter})")
             query_params.append(bigquery.ScalarQueryParameter(f"status_param_{param_counter}", "STRING", search_term.strip().capitalize()))
 
         if not status_conditions:
@@ -240,9 +240,10 @@ def get_travel_requests_by_status(search_term: str) -> str:
              return f"No pude interpretar el término de búsqueda de estado: '{search_term}'."
 
         where_clause = " OR ".join(status_conditions)
+        # Seleccionamos campos para la tabla
         query = f"""
-            SELECT request_id, timestamp, employee_first_name, employee_last_name, employee_id, 
-                   origin_city, destination_city, start_date, end_date, transport_mode, car_type, reason, status
+            SELECT request_id, employee_first_name, employee_last_name, 
+                   destination_city, start_date, end_date, status
             FROM `{table_ref_str}` WHERE {where_clause} ORDER BY timestamp DESC LIMIT 10
         """
         job_config = bigquery.QueryJobConfig(query_parameters=query_params)
@@ -251,21 +252,31 @@ def get_travel_requests_by_status(search_term: str) -> str:
 
         if results.total_rows == 0:
             print(f"[LOG get_travel_requests_by_status]: No se encontraron solicitudes para '{search_term}'.")
-            return f"No se encontraron solicitudes para el término: '{search_term}'."
+            return f"No se encontraron solicitudes de viaje para el término: '{search_term}'."
 
-        found_requests = [
-            (f"ID: {row.request_id}, Empleado: {row.employee_first_name} {row.employee_last_name} (ID: {row.employee_id}), "
-             f"Ruta: {row.origin_city} a {row.destination_city}, Fechas: {row.start_date} a {row.end_date}, "
-             f"Transporte: {row.transport_mode}{f' ({row.car_type})' if row.car_type and row.transport_mode.lower() == 'coche' else ''}, "
-             f"Motivo: {row.reason}, Estado: {row.status}, Registrada: {row.timestamp.strftime('%Y-%m-%d %H:%M') if row.timestamp else 'N/A'}")
-            for row in results
-        ]
-        response_str = f"Se encontraron {len(found_requests)} solicitudes para '{search_term}':\n" + "\n".join(found_requests)
-        print(f"[LOG get_travel_requests_by_status]: {response_str}")
-        return response_str
+        headers = ["ID Solicitud", "Empleado", "Destino", "Inicio", "Fin", "Estado"]
+        table_md = f"Se encontraron {results.total_rows} solicitudes para '{search_term}':\n\n"
+        table_md += "| " + " | ".join(headers) + " |\n"
+        table_md += "| " + " | ".join(["---"] * len(headers)) + " |\n"
+
+        for row in results:
+            employee_full_name = f"{row.employee_first_name or ''} {row.employee_last_name or ''}".strip()
+            row_data = [
+                str(row.request_id or "N/A"),
+                str(employee_full_name or "N/A"),
+                str(row.destination_city or "N/A"),
+                str(row.start_date) if row.start_date else "N/A",
+                str(row.end_date) if row.end_date else "N/A",
+                str(row.status or "N/A")
+            ]
+            table_md += "| " + " | ".join(row_data) + " |\n"
+        
+        print(f"[LOG DE HERRAMIENTA get_travel_requests_by_status]: Tabla Markdown generada.")
+        return table_md
+
     except Exception as e:
-        print(f"[LOG get_travel_requests_by_status - ERROR]: {e}")
-        return f"Error técnico al consultar solicitudes: {e}."
+        print(f"[LOG DE HERRAMIENTA get_travel_requests_by_status - ERROR]: {e}")
+        return f"Error técnico al consultar las solicitudes de viaje: {e}."
 
 # --- Lógica de la Herramienta 3: Actualizar Estado de Solicitud ---
 def update_travel_request_status(request_id: str, new_status: str) -> str:
@@ -285,6 +296,16 @@ def update_travel_request_status(request_id: str, new_status: str) -> str:
         capitalized_new_status = "Pendiente de Aprobación"
     elif "registrada" in new_status.lower():
         capitalized_new_status = "Registrada"
+    elif "aprobada" in new_status.lower():
+        capitalized_new_status = "Aprobada"
+    elif "rechazada" in new_status.lower():
+        capitalized_new_status = "Rechazada"
+    elif "reservada" in new_status.lower():
+        capitalized_new_status = "Reservada"
+    elif "completada" in new_status.lower():
+        capitalized_new_status = "Completada"
+    elif "cancelada" in new_status.lower():
+        capitalized_new_status = "Cancelada"
 
     if capitalized_new_status not in valid_statuses:
         return f"Error: '{new_status}' (como '{capitalized_new_status}') no es un estado válido. Válidos: {', '.join(valid_statuses)}."
